@@ -1,5 +1,5 @@
 {
-  description = "hunch: Ctrl+F by meaning, a Firefox/Zen extension powered by TypeSafe AI";
+  description = "hunch: Ctrl+F by meaning, a Firefox/Zen extension powered by TokenDance";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   outputs = { self, nixpkgs }:
     let

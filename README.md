@@ -8,7 +8,7 @@ Ctrl+F with a hunch.
 Ask a page a question and the paragraph that answers it lights up, with a probability next to it.
 It also tells you when the answer is not on the page at all.
 
-Powered by [TypeSafe AI](https://docs.typesafe.ai).
+Powered by [TokenDance](https://tokendance.space).
 Jev is not an LLM. It does not generate text. When you use this extension you send a question to the API along the lines of:
 Does *this* element on the page describes X.
 Jev then goes through every element on that page and answers that questions with yes/no and a probability.
@@ -19,7 +19,7 @@ The extension then highlights the elements with the highest probability of being
 - `Alt+F` on macOS, `Ctrl+Shift+F` elsewhere; Cmd+F and Ctrl+F stay the normal find. Change it in Hunch's settings page: click the shortcut field and press the keys you want. In Chrome, change it at chrome://extensions/shortcuts, where it is listed as "Activate the extension".
 - Type in a search query. This can be a word your're looking for, a question, a sentence. Enter/Shift-Enter cycles you to the best first one and you can see all results on the scrollbar just like with normal search.
 
-To use this you need to have a Typesafe API. You can add it in the settings of the extension. To get one, go to https://console.typesafe.ai/keys
+To use this you need to have a TokenDance API key. You can add it in the settings of the extension.
 
 
 https://github.com/user-attachments/assets/606156ad-5529-4db0-b348-4942c0b6c24b
@@ -55,4 +55,4 @@ Results are drawn once all chunks return, so the page stays calm while the searc
 
 ## Privacy and licence
 
-Page text is sent to TypeSafe only while the bar is open on that page, and nothing else is collected. Details in [PRIVACY.md](PRIVACY.md). MIT licensed, see [LICENSE](LICENSE).
+Page text is sent to TokenDance only while the bar is open on that page, and nothing else is collected. Details in [PRIVACY.md](PRIVACY.md). MIT licensed, see [LICENSE](LICENSE).
