@@ -134,6 +134,7 @@
   background: #fbbf24;
   border-radius: 1px;
   cursor: pointer;
+  transition: opacity 0.15s;
 }
 .hunch-mark-current {
   height: 5px;

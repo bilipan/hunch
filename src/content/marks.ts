@@ -1,8 +1,16 @@
 import type { Hit } from "./hits";
 
+interface Mark {
+  el: HTMLElement;
+  hit: Hit;
+}
+
 export class ScrollMarks {
   readonly root: HTMLElement;
   private readonly viewport: HTMLElement;
+  // Keyed by block element, not by Hit: every render rebuilds the Hit objects, but the
+  // element behind a block never changes, so marks survive a progressive redraw.
+  private readonly drawn = new Map<HTMLElement, Mark>();
 
   constructor(private readonly onPick: (hit: Hit) => void) {
     this.root = document.createElement("div");
@@ -14,16 +22,32 @@ export class ScrollMarks {
   }
 
   draw(hits: readonly Hit[], current: Hit | undefined) {
-    for (const m of this.root.querySelectorAll(".hunch-mark")) m.remove();
+    const keep = new Set(hits.map((h) => h.el));
+    for (const [el, mark] of this.drawn) {
+      if (keep.has(el)) continue;
+      mark.el.remove();
+      this.drawn.delete(el);
+    }
     const height = docHeight();
     for (const hit of hits) {
-      const m = document.createElement("div");
-      m.className = hit === current ? "hunch-mark hunch-mark-current" : "hunch-mark";
-      m.style.top = `${((hit.el.getBoundingClientRect().top + window.scrollY) / height) * 100}%`;
-      m.style.opacity = hit === current ? "1" : String(0.4 + 0.6 * hit.p);
-      m.title = `${Math.round(hit.p * 100)}%`;
-      m.addEventListener("click", () => this.onPick(hit));
-      this.root.appendChild(m);
+      let mark = this.drawn.get(hit.el);
+      if (!mark) {
+        const el = document.createElement("div");
+        el.className = "hunch-mark";
+        el.addEventListener("click", () => {
+          const drawn = this.drawn.get(hit.el);
+          if (drawn) this.onPick(drawn.hit);
+        });
+        mark = { el, hit };
+        this.drawn.set(hit.el, mark);
+        this.root.appendChild(el);
+      }
+      mark.hit = hit;
+      const isCurrent = hit === current;
+      mark.el.className = isCurrent ? "hunch-mark hunch-mark-current" : "hunch-mark";
+      mark.el.style.top = `${((hit.el.getBoundingClientRect().top + window.scrollY) / height) * 100}%`;
+      mark.el.style.opacity = isCurrent ? "1" : String(0.4 + 0.6 * hit.p);
+      mark.el.title = `${Math.round(hit.p * 100)}%`;
     }
     this.updateViewport();
   }

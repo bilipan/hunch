@@ -1,12 +1,14 @@
 import browser from "webextension-polyfill";
-import { FindBar } from "./content/bar";
+import { FindBar, type Status } from "./content/bar";
 import { extractBlocks, type PageBlock } from "./content/blocks";
-import { clearPaint, type Hit, markCurrent, paint, rankHits } from "./content/hits";
+import { clearPaint, type Hit, markCurrent, paintHits, rankHits } from "./content/hits";
 import { ScrollMarks } from "./content/marks";
 import { type Progress, SEARCH_PORT, type Search, type SearchEvent, type TabMessage } from "./shared/protocol";
 
 const DEBOUNCE_MS = 300;
 const MIN_QUERY = 3;
+
+type Verdict = NonNullable<Status["verdict"]>;
 
 class Hunch {
   // The UI lives in a shadow root so page CSS (YouTube and others) can't change it
@@ -16,11 +18,16 @@ class Hunch {
     onStep: (dir) => this.step(dir),
     onClose: () => this.close(),
   });
-  private readonly marks = new ScrollMarks((hit) => this.goTo(hit));
+  private readonly marks = new ScrollMarks((hit) => {
+    this.pinned = true;
+    this.goTo(hit);
+  });
 
   private blocks: PageBlock[] = [];
   private hits: Hit[] = [];
-  private current: Hit | undefined;
+  private currentEl: HTMLElement | undefined;
+  // Set once the reader picks a hit themselves, so incoming chunks stop yanking them
+  private pinned = false;
   private port: browser.Runtime.Port | undefined;
   private debounce: number | undefined;
 
@@ -53,7 +60,8 @@ class Hunch {
   private reset() {
     clearPaint();
     this.hits = [];
-    this.current = undefined;
+    this.currentEl = undefined;
+    this.pinned = false;
     this.marks.draw([], undefined);
     this.bar.set({
       counter: "",
@@ -71,8 +79,8 @@ class Hunch {
   }
 
   private search(query: string) {
-    this.current = undefined;
-    this.bar.set({ verdict: { text: "thinking…", tone: "busy" }, progress: { done: 0, total: 1 } });
+    this.reset();
+    this.bar.set({ verdict: { text: "searching…", tone: "busy" }, progress: { done: 0, total: 1 } });
     const req: Search = {
       url: location.href,
       title: document.title,
@@ -98,51 +106,68 @@ class Hunch {
       return;
     }
     const finished = e.done === e.total;
-    if (!finished) {
-      // While search is in progress, only update the status bar — don't repaint highlights
-      this.bar.set({ ...this.status(e), verdict: { text: "thinking…", tone: "busy" } });
-      return;
-    }
-    // Final render: paint highlights and marks once
+    // Scores land chunk by chunk, so highlight whatever has cleared the bar already
+    // instead of holding the page still until the last request comes back.
     this.hits = rankHits(this.blocks, e.scores);
-    paint(this.hits);
-    if (this.hits[0]) this.goTo(this.hits[0]);
-    else this.current = undefined;
+    paintHits(this.hits);
+
+    const best = this.hits[0];
+    if (best && !this.pinned) {
+      // Never scroll on our own: highlights land wherever they sit on the page and the
+      // reader stays put. ▲▼ or a click on the rail is the only thing that moves them.
+      this.moveTo(best, false);
+    } else {
+      if (finished && !best) this.currentEl = undefined;
+      this.marks.draw(this.hits, this.current);
+    }
     this.bar.set(this.status(e));
-    this.marks.draw(this.hits, this.current);
   }
 
   private status(p: Progress) {
     const finished = p.done === p.total;
     const best = this.hits[0];
     const n = this.hits.length;
+    const verdict: Verdict = best
+      ? { text: `on this page · ${Math.round(best.p * 100)}%`, tone: finished ? "found" : "busy" }
+      : { text: finished ? "not on this page" : "searching…", tone: finished ? "absent" : "busy" };
     return {
-      verdict: {
-        text: best ? `on this page · ${Math.round(best.p * 100)}%` : "not on this page",
-        tone: finished ? (best ? "found" : "absent") : "busy",
-      },
+      verdict,
       meta: `${n} hit${n === 1 ? "" : "s"} · ${p.ms} ms · ${p.total} req${p.failed ? ` · ${p.failed} failed` : ""}`,
       progress: { done: p.done, total: p.total },
       counter: this.counterText(),
     } as const;
   }
 
+  private get current(): Hit | undefined {
+    return this.currentEl ? this.hits.find((h) => h.el === this.currentEl) : undefined;
+  }
+
   private counterText() {
-    if (!this.current) return this.hits.length ? "" : "0 hits";
-    return `${this.hits.indexOf(this.current) + 1} of ${this.hits.length} · ${Math.round(this.current.p * 100)}%`;
+    const i = this.currentIndex();
+    if (i < 0) return this.hits.length ? "" : "0 hits";
+    return `${i + 1} of ${this.hits.length} · ${Math.round(this.hits[i]!.p * 100)}%`;
+  }
+
+  private currentIndex() {
+    return this.currentEl ? this.hits.findIndex((h) => h.el === this.currentEl) : -1;
   }
 
   private step(dir: 1 | -1) {
     if (!this.hits.length) return;
-    const i = this.current ? this.hits.indexOf(this.current) : -1;
+    this.pinned = true;
+    const i = this.currentIndex();
     this.goTo(this.hits[(i + dir + this.hits.length) % this.hits.length]!);
   }
 
   private goTo(hit: Hit) {
-    markCurrent(this.current, hit);
-    this.current = hit;
+    this.moveTo(hit, true);
+  }
+
+  private moveTo(hit: Hit, scroll: boolean) {
+    markCurrent(this.current, hit, { scroll });
+    this.currentEl = hit.el;
     this.bar.set({ counter: this.counterText() });
-    this.marks.draw(this.hits, this.current);
+    this.marks.draw(this.hits, hit);
   }
 }
 

@@ -14,9 +14,13 @@ export function rankHits(blocks: readonly PageBlock[], scores: Record<BlockId, n
     .sort((a, b) => b.p - a.p);
 }
 
-export function paint(hits: readonly Hit[]) {
-  clearPaint();
+export function paintHits(hits: readonly Hit[]) {
   for (const { el, p } of hits) {
+    // Scores arrive chunk by chunk, so the same hit shows up in every progress event
+    // until the search ends. A block's score never changes once scored, which makes
+    // skipping the already-painted ones enough to keep this incremental.
+    if (el.classList.contains("hunch-hl")) continue;
+
     el.classList.add("hunch-hl");
 
     if (getComputedStyle(el).position === "static") el.classList.add("hunch-rel");
