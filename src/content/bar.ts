@@ -19,6 +19,11 @@ export interface Status {
 // through float arithmetic the way 0.05 steps do.
 const PERCENT = 100;
 
+// Handle width lives here, not in the stylesheet, because the collision test below has
+// to know it to decide whether the two handles are on top of each other. The token is
+// written out from here so the two can't drift apart. Sized for the widest value, "1.00".
+const HANDLE_PX = 38;
+
 export class FindBar {
   readonly root: HTMLElement;
   private readonly input: HTMLInputElement;
@@ -27,9 +32,16 @@ export class FindBar {
   private readonly meta: HTMLElement;
   private readonly progress: HTMLElement;
   private readonly bandFill: HTMLElement;
-  private readonly bandLabel: HTMLElement;
+  private readonly bandRoot: HTMLElement;
   private readonly bandLo: HTMLInputElement;
   private readonly bandHi: HTMLInputElement;
+  // The visible handles. A slider thumb pseudo-element can't hold content, and making it
+  // solid made it cover the readout, so the inputs stay invisible interaction surfaces
+  // and these carry both the grip and the number.
+  private readonly handleLo: HTMLElement;
+  private readonly handleHi: HTMLElement;
+  private lifted: "lo" | "hi" = "hi";
+  private last: Band = DEFAULT_BAND;
 
   constructor(handlers: BarHandlers) {
     this.input = element("input", {
@@ -44,10 +56,21 @@ export class FindBar {
     this.meta = element("span", { class: "hunch-meta" });
     this.progress = element("div", { class: "hunch-progress-fill" });
     this.bandFill = element("div", { class: "hunch-band-fill" });
-    this.bandLabel = element("span", { class: "hunch-band-label" });
+    this.handleLo = this.handle("hunch-handle-lo");
+    this.handleHi = this.handle("hunch-handle-hi");
     const step = String(Math.round(BAND_STEP * PERCENT));
     this.bandLo = this.thumb("Minimum confidence", step);
     this.bandHi = this.thumb("Maximum confidence", step);
+    this.bandRoot = element(
+      "div",
+      { class: "hunch-band", title: "Confidence band" },
+      element("div", { class: "hunch-band-track" }, this.bandFill),
+      this.bandLo,
+      this.bandHi,
+      this.handleLo,
+      this.handleHi,
+    );
+    this.bandRoot.style.setProperty("--h-handle-w", `${HANDLE_PX}px`);
     const prev = element("button", { class: "hunch-nav", title: "Previous (Shift+Enter)" }, "▲");
     const next = element("button", { class: "hunch-nav", title: "Next (Enter)" }, "▼");
     const close = element("button", { class: "hunch-close", title: "Close (Esc)" }, "✕");
@@ -55,17 +78,9 @@ export class FindBar {
       "div",
       { class: "hunch-bar", role: "search" },
       this.input,
-      element(
-        "div",
-        { class: "hunch-band", title: "Confidence band" },
-        element("div", { class: "hunch-band-track" }, this.bandFill),
-        this.bandLo,
-        this.bandHi,
-        this.bandLabel,
-      ),
+      this.bandRoot,
       this.counter,
-      prev,
-      next,
+      element("div", { class: "hunch-seg" }, prev, next),
       this.verdict,
       this.meta,
       close,
@@ -91,6 +106,10 @@ export class FindBar {
       }
     });
     this.paintBand(DEFAULT_BAND);
+    // Narrowing the track can make two handles that were clear collide, without the band
+    // itself changing. The handle positions are CSS-driven and follow automatically; the
+    // collision class is the only thing that needs recomputing.
+    new ResizeObserver(() => this.markCollision(this.last.lo, this.last.hi)).observe(this.bandRoot);
   }
 
   private thumb(label: string, step: string) {
@@ -104,12 +123,20 @@ export class FindBar {
     });
   }
 
+  private handle(className: string) {
+    return element("span", { class: `hunch-handle ${className}` }, element("span", { class: "hunch-handle-num" }, "0.00"));
+  }
+
   // The two inputs cover the whole track, so whichever is on top owns every overlap
-  // between the thumbs — roughly a 9% window at the default thumb size. Raising the one
-  // being dragged keeps the other reachable the moment you let go.
+  // between them. Raising the one being dragged keeps the other reachable again the
+  // moment you let go — and the handles have to move with it or they stack wrong.
   private lift(input: HTMLInputElement) {
-    this.bandLo.style.zIndex = input === this.bandLo ? "2" : "1";
-    this.bandHi.style.zIndex = input === this.bandHi ? "2" : "1";
+    this.lifted = input === this.bandLo ? "lo" : "hi";
+    const lo = this.lifted === "lo";
+    this.bandLo.style.zIndex = lo ? "2" : "1";
+    this.bandHi.style.zIndex = lo ? "1" : "2";
+    this.handleLo.style.zIndex = lo ? "2" : "1";
+    this.handleHi.style.zIndex = lo ? "1" : "2";
   }
 
   // Keeps the thumbs a step apart instead of letting them cross and silently swap ends.
@@ -132,11 +159,44 @@ export class FindBar {
   private paintBand({ lo, hi }: Band) {
     this.bandLo.value = String(Math.round(lo * PERCENT));
     this.bandHi.value = String(Math.round(hi * PERCENT));
-    // Half a thumb in from each end, mirroring how the browser places the thumbs
-    const inset = (fraction: number) => `calc(var(--hunch-thumb) / 2 + (100% - var(--hunch-thumb)) * ${fraction})`;
+    // Half a handle in from each end, mirroring how the browser places the thumbs
+    const inset = (fraction: number) => `calc(var(--h-handle-w) / 2 + (100% - var(--h-handle-w)) * ${fraction})`;
     this.bandFill.style.left = inset(lo);
     this.bandFill.style.right = inset(1 - hi);
-    this.bandLabel.textContent = `${Math.round(lo * PERCENT)}–${Math.round(hi * PERCENT)}%`;
+    this.paintHandle(this.handleLo, lo, this.bandLo);
+    this.paintHandle(this.handleHi, hi, this.bandHi);
+    this.markCollision(lo, hi);
+  }
+
+  // Fixed-width handles cannot help overlapping once the band gets narrower than one of
+  // them, and that is reachable: a step apart is 5%, which on a 210px track is under 10px
+  // of travel against a 38px handle. Rather than forbid narrow bands — isolating the single
+  // best hit is the whole point of the control — the handle that is currently underneath
+  // drops its number and shows a dot instead. The one on top always stays readable.
+  private markCollision(lo: number, hi: number) {
+    this.last = { lo, hi };
+    const width = this.bandRoot.offsetWidth;
+    // Before the bar is in the document every measurement is zero, which would make the
+    // travel near zero and report every band as collided. Leave the default alone.
+    if (width === 0) return;
+    const travel = width - HANDLE_PX;
+    const centre = (value: number) => HANDLE_PX / 2 + travel * value;
+    const collided = Math.abs(centre(hi) - centre(lo)) < HANDLE_PX;
+    // Clear both, not just the one underneath: lift() can swap which handle is on top,
+    // and the previously-buried one would otherwise keep a stale class and go blank too.
+    this.handleLo.classList.remove("hunch-handle-collided");
+    this.handleHi.classList.remove("hunch-handle-collided");
+    if (!collided) return;
+    (this.lifted === "hi" ? this.handleLo : this.handleHi).classList.add("hunch-handle-collided");
+  }
+
+  private paintHandle(handle: HTMLElement, value: number, input: HTMLInputElement) {
+    // Two decimals, matching the score printed on each highlight — 0.86 there, 0.86 here.
+    const text = value.toFixed(2);
+    handle.style.setProperty("--v", String(value));
+    const num = handle.querySelector(".hunch-handle-num");
+    if (num) num.textContent = text;
+    input.setAttribute("aria-valuetext", text);
   }
 
   focus() {

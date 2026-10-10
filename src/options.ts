@@ -1,5 +1,5 @@
 import browser from "webextension-polyfill";
-import { DEFAULT_SETTINGS, listModels, loadSettings, requestApiAccess, saveSettings } from "./shared/settings";
+import { DEFAULT_SETTINGS, listModels, loadSettings, requestApiAccess, saveSettings, type Theme } from "./shared/settings";
 import {
   canRebindShortcut,
   commandShortcutFromEvent,
@@ -14,6 +14,7 @@ import {
 const field = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const apiKey = field<HTMLInputElement>("apiKey");
 const model = field<HTMLSelectElement>("model");
+const theme = field<HTMLSelectElement>("theme");
 const modelNote = field("modelNote");
 const banner = field("nokey");
 const saved = field("saved");
@@ -98,6 +99,7 @@ async function load() {
   shortcut.value = await shortcutLabel();
   const s = await loadSettings();
   apiKey.value = s.apiKey;
+  theme.value = s.theme;
   await loadModels(s.apiKey, s.model);
   showKeyBanner(Boolean(s.apiKey));
 }
@@ -106,6 +108,7 @@ async function save() {
   const s = {
     apiKey: apiKey.value.trim(),
     model: model.value || DEFAULT_SETTINGS.model,
+    theme: theme.value as Theme,
   };
   await requestApiAccess();
   await saveSettings(s);

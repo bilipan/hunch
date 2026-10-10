@@ -1,11 +1,14 @@
 import browser from "webextension-polyfill";
 
+export type Theme = "auto" | "light" | "dark";
+
 export interface Settings {
   apiKey: string;
   model: string;
+  theme: Theme;
 }
 
-export const DEFAULT_SETTINGS: Settings = { apiKey: "", model: "ateve-jev-v1" };
+export const DEFAULT_SETTINGS: Settings = { apiKey: "", model: "ateve-jev-v1", theme: "auto" };
 
 export async function loadSettings(): Promise<Settings> {
   const stored = (await browser.storage.local.get("settings")) as { settings?: Partial<Settings> };

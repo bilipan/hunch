@@ -22,6 +22,12 @@
   <label>TokenDance API key <input id="apiKey" type="password" placeholder="sk-…"></label>
   <label>Model <small id="modelNote"></small>
     <select id="model"></select></label>
+  <label>Appearance <small id="themeNote">Auto follows the page you are on, falling back to your system setting.</small>
+    <select id="theme">
+      <option value="auto">Auto — match the page</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select></label>
   <label>Shortcut <small id="shortcutHint">Click the field and press the keys you want.</small>
     <span class="row">
       <input id="shortcut" type="text" readonly placeholder="…">

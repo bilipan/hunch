@@ -19,6 +19,7 @@ The extension then highlights the elements with the highest probability of being
 - `Alt+F` on macOS, `Ctrl+Shift+F` elsewhere; Cmd+F and Ctrl+F stay the normal find. Change it in Hunch's settings page: click the shortcut field and press the keys you want. In Chrome, change it at chrome://extensions/shortcuts, where it is listed as "Activate the extension".
 - Type in a search query. This can be a word your're looking for, a question, a sentence. Enter/Shift-Enter cycles you to the best first one and you can see all results on the scrollbar just like with normal search.
 - The slider in the bar is a confidence band. Hits inside it are highlighted and reachable with Enter; hits outside it keep a faint wash but drop out of the scrollbar and the count. Drag it to cut off the weak tail, or to cut off hits the model is suspiciously sure about, and the remaining highlights restretch so you can still tell them apart. It remembers where you left it for the tab.
+- Hunch follows the look of the page it is on. The highlights take a deeper amber on a light background and a brighter one on a dark one, and the bar picks a matching palette. If you would rather it did not, set Appearance to Light or Dark in the settings page; the default, Auto, tracks the page and falls back to your system setting.
 
 To use this you need to have a TokenDance API key. You can add it in the settings of the extension.
 

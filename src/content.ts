@@ -3,8 +3,10 @@ import { FindBar, type Status } from "./content/bar";
 import { extractBlocks, type PageBlock } from "./content/blocks";
 import { clearPaint, type Hit, markCurrent, paintBand, rankHits } from "./content/hits";
 import { ScrollMarks } from "./content/marks";
+import { pageSurface } from "./content/surface";
 import { type Band, DEFAULT_BAND } from "./shared/questions";
 import { type BlockId, type Progress, SEARCH_PORT, type Search, type SearchEvent, type TabMessage } from "./shared/protocol";
+import { loadSettings } from "./shared/settings";
 
 const DEBOUNCE_MS = 300;
 const MIN_QUERY = 3;
@@ -34,6 +36,7 @@ class Hunch {
   private currentEl: HTMLElement | undefined;
   // Set once the reader picks a hit themselves, so incoming chunks stop yanking them
   private pinned = false;
+  private opened = false;
   private port: browser.Runtime.Port | undefined;
   private debounce: number | undefined;
 
@@ -43,29 +46,56 @@ class Hunch {
     style.href = browser.runtime.getURL("ui.css");
     this.host.attachShadow({ mode: "open" }).append(style, this.bar.root, this.marks.root);
     document.documentElement.appendChild(this.host);
-    window.addEventListener("resize", () => this.marks.draw(this.hits, this.current));
-    // The bar wraps to a different height on narrow screens, so the rail's bottom edge
-    // follows it rather than trusting a hardcoded offset.
-    new ResizeObserver(() => {
-      this.host.style.setProperty("--hunch-bar-h", `${this.bar.root.offsetHeight}px`);
-    }).observe(this.bar.root);
+    // The wash is painted on the page itself, so its palette follows the page's own
+    // background rather than whatever the bar is themed to.
+    document.documentElement.dataset.hunchSurface = pageSurface();
+    window.addEventListener("resize", () => {
+      this.measure();
+      this.marks.draw(this.hits, this.current);
+    });
+    // The card floats and wraps on narrow screens, so the rail's bottom edge follows its
+    // live geometry rather than trusting an offset baked into the stylesheet.
+    new ResizeObserver(() => this.measure()).observe(this.bar.root);
   }
 
   get isOpen() {
-    return this.host.classList.contains("hunch-open");
+    return this.opened;
   }
 
   open() {
+    if (this.opened) return;
+    this.opened = true;
     this.blocks = extractBlocks();
-    this.host.classList.add("hunch-open");
     this.reset();
-    this.bar.focus();
+    void this.reveal();
   }
 
   close() {
+    if (!this.opened) return;
+    this.opened = false;
     this.host.classList.remove("hunch-open");
     this.abort();
     this.reset();
+  }
+
+  // Resolving the theme costs a storage read, so it happens before the card is shown
+  // rather than after — otherwise every open starts as a flash of the wrong palette.
+  // Re-read each time rather than cached, so a change on the settings page lands without
+  // needing a reload. "auto" follows the page, falling back to the system setting.
+  private async reveal() {
+    const { theme } = await loadSettings();
+    this.host.dataset.theme = theme === "auto" ? pageSurface() : theme;
+    if (!this.opened) return; // closed again while we were reading storage
+    this.host.classList.add("hunch-open");
+    this.measure();
+    this.bar.focus();
+  }
+
+  private measure() {
+    // The rail hangs off the bottom of a bar pinned to the top of the viewport, so all
+    // it needs is the bar's height. offsetHeight rather than getBoundingClientRect
+    // because the bar is mid-drop on its entrance animation and transforms would skew it.
+    this.host.style.setProperty("--hunch-bar-h", `${this.bar.root.offsetHeight}px`);
   }
 
   private reset() {
@@ -162,8 +192,9 @@ class Hunch {
     return {
       verdict,
       // undefined leaves whatever reset() put there alone, so nudging the slider before
-      // searching doesn't replace the block count with "0 hits"
-      meta: p ? `${n} hit${n === 1 ? "" : "s"} · ${p.ms} ms · ${p.total} req${p.failed ? ` · ${p.failed} failed` : ""}` : undefined,
+      // searching doesn't replace the block count with "0 hits". The hit count lives in
+      // the counter already, so this line is only the diagnostics.
+      meta: p ? `${p.ms} ms · ${p.total} req${p.failed ? ` · ${p.failed} failed` : ""}` : undefined,
       progress: { done: p?.done ?? 0, total: p?.total ?? 0 },
       counter: this.counterText(),
     };

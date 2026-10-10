@@ -1,3 +1,8 @@
+/* ─── tokens ────────────────────────────────────────────────────────────────
+   Dark is the base so the pre-resolve frame never flashes light. open() always
+   sets data-theme, so [data-theme="light"] is the only override that matters.
+   Colours are stored as bare RGB channels so they compose with an alpha in
+   rgb(... / var(--a)) without repeating the channel list. */
 :host {
   all: initial;
   position: fixed;
@@ -5,11 +10,44 @@
   z-index: 2147483647;
   pointer-events: none;
   display: none;
-  font:
-    13px / 1.4 -apple-system,
-    system-ui,
-    sans-serif;
   color-scheme: dark;
+
+  --h-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --h-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --h-bg: 20 19 26;
+  --h-raise: 255 255 255;
+  --h-raise-a: 0.06;
+  --h-line: 255 255 255;
+  --h-line-a: 0.13;
+  --h-text: 245 244 250;
+  --h-muted: 158 157 172;
+  --h-faint: 118 117 132;
+  --h-accent: 251 191 36;
+  --h-found: 63 225 176;
+  --h-bad: 255 143 153;
+  --h-busy: 128 191 255;
+  --h-shade: 0 0 0;
+
+  font: 13px/1.4 var(--h-sans);
+  letter-spacing: 0.01em;
+}
+:host([data-theme="light"]) {
+  color-scheme: light;
+
+  --h-bg: 250 250 252;
+  --h-raise: 12 10 24;
+  --h-raise-a: 0.045;
+  --h-line: 12 10 24;
+  --h-line-a: 0.14;
+  --h-text: 26 24 36;
+  --h-muted: 104 102 120;
+  --h-faint: 140 138 154;
+  --h-accent: 191 116 6;
+  --h-found: 4 120 96;
+  --h-bad: 190 32 46;
+  --h-busy: 3 105 161;
+  --h-shade: 32 26 64;
 }
 :host(.hunch-open) {
   display: block;
@@ -18,226 +56,360 @@
   box-sizing: border-box;
 }
 
+/* ─── the bar ──────────────────────────────────────────────────────────────
+   Full width, pinned to the top, deliberately flat: one opaque fill, one hairline,
+   one soft shadow to keep it off the page as it scrolls under. No blur, no bevel,
+   no rounded card — anything more decorative competes with the page it sits on. */
 .hunch-bar {
   pointer-events: auto;
   position: absolute;
+  top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
-  background: #1c1b22;
-  color: #fbfbfe;
-  border-top: 1px solid #3a3944;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+  gap: 8px;
+  padding: 6px 10px;
+  color: rgb(var(--h-text));
+  background: rgb(var(--h-bg));
+  border-bottom: 1px solid rgb(var(--h-line) / var(--h-line-a));
+  box-shadow: 0 1px 3px rgb(var(--h-shade) / 0.24);
+  animation: hunch-drop 0.26s cubic-bezier(0.2, 0.9, 0.25, 1) both;
 }
-.hunch-input {
-  flex: 1 1 200px;
-  min-width: 0;
-  font: inherit;
-  color: #fbfbfe;
-  background: #2b2a33;
-  border: 1px solid #52525e;
-  border-radius: 4px;
-  padding: 5px 10px;
-  max-width: 360px;
-  outline: none;
-  margin: 0;
-}
-.hunch-input:focus {
-  border-color: #fbbf24;
-  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.25);
-}
-.hunch-counter {
-  min-width: 110px;
-  font-variant-numeric: tabular-nums;
+@keyframes hunch-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-/* Two overlaid range inputs make a two-handle band; only the thumbs take pointer
-   events, so the track in between stays inert and either thumb can be grabbed. */
-.hunch-band {
-  /* Chromium and Firefox both inset a range thumb by half its width, so a thumb at
-     value 100 renders centred on the last pixel, not on the track's right edge.
-     The fill has to subtract that inset to stay glued to the thumb centres. */
-  --hunch-thumb: 12px;
-  position: relative;
-  flex: 0 0 128px;
-  height: 20px;
-  display: flex;
-  align-items: center;
+/* ─── query field ───────────────────────────────────────────────────────────
+   A quiet tonal fill rather than a bordered box, which keeps the flat bar from
+   turning into a row of competing rectangles. */
+.hunch-input {
+  /* The only thing allowed to give up width. Every other readout is flex-shrink 0 so
+     a long verdict never ends up ellipsised just because the meta line grew. */
+  flex: 1 1 260px;
+  min-width: 170px;
+  max-width: 340px;
+  margin: 0;
+  padding: 5px 8px;
+  font: inherit;
+  letter-spacing: 0.005em;
+  color: rgb(var(--h-text));
+  background: rgb(var(--h-raise) / var(--h-raise-a));
+  border: 1px solid transparent;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
 }
+.hunch-input::placeholder {
+  color: rgb(var(--h-faint));
+}
+.hunch-input:focus {
+  background: rgb(var(--h-raise) / calc(var(--h-raise-a) * 1.6));
+  border-color: rgb(var(--h-accent) / 0.6);
+}
+
+.hunch-counter {
+  flex: 0 0 auto;
+  font: 11px/1 var(--h-mono);
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--h-muted));
+  padding-inline: 4px 2px;
+  white-space: nowrap;
+}
+
+/* ─── confidence band ───────────────────────────────────────────────────────
+   Two overlaid range inputs drive the control, but they are invisible: the grip and
+   its number are painted by .hunch-handle, because a slider thumb pseudo-element
+   cannot hold content. The inputs still own keyboard, focus and hit-testing. */
+.hunch-band {
+  /* Both browsers inset a slider thumb by half its width, so a thumb at value 100
+     renders centred on the last pixel, not on the track's right edge. Everything
+     positional — the fill and both handles — derives from the handle width so they
+     stay glued to each other. HANDLE_W is written from bar.ts onto this element, which
+     also needs it for the collision test, so it is deliberately not declared here. */
+  --h-handle-h: 22px;
+  position: relative;
+  flex: 0 0 210px;
+  height: var(--h-handle-h);
+}
+/* The track is a full-height channel rather than a thin line behind, so the handle reads
+   as sitting inside it. Its radius is a pixel larger than the handle's, which leaves a
+   hairline of track visible around the handle's corners — that reveal is what makes it
+   look seated in a groove instead of floating on top of a bar. */
 .hunch-band-track {
   position: absolute;
   left: 0;
   right: 0;
-  height: 4px;
-  border-radius: 2px;
-  background: #3a3944;
+  top: 0;
+  bottom: 0;
+  border-radius: 7px;
+  background: rgb(var(--h-line) / calc(var(--h-line-a) * 1.8));
+  box-shadow: inset 0 1px 2px rgb(var(--h-shade) / 0.22);
 }
 .hunch-band-fill {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: #fbbf24;
-  border-radius: 2px;
+  border-radius: 7px;
+  background: rgb(var(--h-accent) / 0.45);
 }
+/* Sized to match the visible handle, so what you grab is what you see. */
 .hunch-band-thumb {
   position: absolute;
   left: 0;
   right: 0;
+  top: 0;
   width: 100%;
+  height: var(--h-handle-h);
   margin: 0;
+  padding: 0;
+  border: 0;
   background: none;
   appearance: none;
   -webkit-appearance: none;
   pointer-events: none;
-  border: 0;
-  padding: 0;
 }
 .hunch-band-thumb::-webkit-slider-thumb {
   -webkit-appearance: none;
   pointer-events: auto;
-  width: var(--hunch-thumb);
-  height: var(--hunch-thumb);
-  border-radius: 50%;
-  background: #fbfbfe;
-  border: 2px solid #fbbf24;
+  width: var(--h-handle-w);
+  height: var(--h-handle-h);
+  background: transparent;
+  border: 0;
   cursor: ew-resize;
-}
-/* The last-grabbed thumb stays on top so the other is reachable again on release */
-.hunch-band-thumb:focus {
-  outline: none;
-}
-.hunch-band-thumb:focus::-webkit-slider-thumb {
-  box-shadow: 0 0 0 2px #1c1b22, 0 0 0 4px #80bfff;
 }
 .hunch-band-thumb::-moz-range-thumb {
   pointer-events: auto;
-  width: var(--hunch-thumb);
-  height: var(--hunch-thumb);
-  border-radius: 50%;
-  background: #fbfbfe;
-  border: 2px solid #fbbf24;
+  width: var(--h-handle-w);
+  height: var(--h-handle-h);
+  background: transparent;
+  border: 0;
   cursor: ew-resize;
-}
-.hunch-band-thumb:focus::-moz-range-thumb {
-  box-shadow: 0 0 0 2px #1c1b22, 0 0 0 4px #80bfff;
 }
 .hunch-band-thumb::-moz-range-track {
   background: none;
   border: 0;
 }
-.hunch-band-label {
+.hunch-band-thumb:focus {
+  outline: none;
+}
+
+/* Fixed width on purpose: the value rides on the handle, and a handle that resized with
+   its own digits would make the whole control twitch as the band is dragged. 34px is
+   sized to the widest value (100) plus padding. */
+.hunch-handle {
   position: absolute;
-  bottom: -3px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  font: 9px / 1 monospace;
-  color: #a8a7b3;
+  top: 0;
+  width: var(--h-handle-w);
+  height: var(--h-handle-h);
+  transform: translateX(-50%);
+  left: calc(var(--h-handle-w) / 2 + (100% - var(--h-handle-w)) * var(--v, 0));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font: 600 10px/1 var(--h-mono);
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--h-bg));
+  background: rgb(var(--h-text));
+  box-shadow: 0 1px 2px rgb(var(--h-shade) / 0.3);
   pointer-events: none;
 }
+.hunch-band-lo:focus-visible ~ .hunch-handle-lo,
+.hunch-band-hi:focus-visible ~ .hunch-handle-hi {
+  box-shadow:
+    0 0 0 2px rgb(var(--h-bg)),
+    0 0 0 3.5px rgb(var(--h-busy));
+}
+/* Collided state: the handle is underneath the other one, so its number would be
+   unreadable anyway. The width stays put — only the digits are swapped for a dot. */
+.hunch-handle-collided .hunch-handle-num {
+  visibility: hidden;
+}
+.hunch-handle-collided::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: rgb(var(--h-bg) / 0.55);
+}
+
+/* ─── controls ─────────────────────────────────────────────────────────────
+   ▲▼ read as one instrument, so they share a frame instead of floating as two
+   separate buttons. */
+.hunch-seg {
+  display: flex;
+  flex: 0 0 auto;
+  border: 1px solid rgb(var(--h-line) / var(--h-line-a));
+  border-radius: 8px;
+  overflow: hidden;
+}
 .hunch-nav {
-  font: 11px / 1 sans-serif;
-  color: #fbfbfe;
-  background: #2b2a33;
-  border: 1px solid #52525e;
-  border-radius: 4px;
-  padding: 5px 8px;
+  font: 9px/1 var(--h-sans);
+  color: rgb(var(--h-muted));
+  background: rgb(var(--h-raise) / calc(var(--h-raise-a) * 0.8));
+  border: 0;
+  border-right: 1px solid rgb(var(--h-line) / var(--h-line-a));
+  padding: 6px 8px;
   cursor: pointer;
   margin: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.hunch-nav:last-child {
+  border-right: 0;
 }
 .hunch-nav:hover {
-  background: #3a3944;
+  background: rgb(var(--h-raise) / calc(var(--h-raise-a) * 2.2));
+  color: rgb(var(--h-text));
 }
+
+/* The search's verdict. Weight carries the hierarchy now, not a second typeface. */
 .hunch-verdict {
+  flex: 0 0 auto;
+  font-size: 13px;
   font-weight: 600;
+  letter-spacing: 0.005em;
+  padding-inline: 2px;
+  white-space: nowrap;
 }
 .hunch-found {
-  color: #3fe1b0;
+  color: rgb(var(--h-found));
 }
 .hunch-absent,
 .hunch-error {
-  color: #ff9aa2;
+  color: rgb(var(--h-bad));
 }
 .hunch-busy {
-  color: #80bfff;
+  color: rgb(var(--h-busy));
+}
+.hunch-none {
+  opacity: 0;
 }
 .hunch-meta {
-  color: #a8a7b3;
+  flex: 0 0 auto;
+  font: 10px/1 var(--h-mono);
   font-variant-numeric: tabular-nums;
+  color: rgb(var(--h-faint));
   white-space: nowrap;
+  padding-inline: 2px 6px;
   margin-left: auto;
 }
 .hunch-close {
-  font: inherit;
-  color: #a8a7b3;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  font: 12px/1 var(--h-sans);
+  color: rgb(var(--h-faint));
   background: none;
   border: 0;
+  border-radius: 7px;
   cursor: pointer;
-  padding: 2px 6px;
+  padding: 0;
   margin: 0;
+  transition: background 0.15s, color 0.15s;
 }
 .hunch-close:hover {
-  color: #fbfbfe;
+  background: rgb(var(--h-raise) / calc(var(--h-raise-a) * 2));
+  color: rgb(var(--h-text));
 }
+:where(.hunch-input, .hunch-nav, .hunch-close, .hunch-band-thumb):focus-visible {
+  outline: 2px solid rgb(var(--h-accent));
+  outline-offset: 2px;
+}
+
+/* Progress reads as a hairline creeping along the bar's bottom edge. */
 .hunch-progress {
   position: absolute;
   left: 0;
   right: 0;
-  top: -2px;
+  bottom: -1px;
   height: 2px;
+  overflow: hidden;
 }
 .hunch-progress-fill {
   height: 100%;
   width: 0;
-  background: #80bfff;
-  transition: width 0.15s;
+  background: rgb(var(--h-busy));
+  transition: width 0.2s cubic-bezier(0.3, 0.8, 0.3, 1);
   opacity: 0;
 }
 .hunch-progress.hunch-active .hunch-progress-fill {
   opacity: 1;
 }
 
+/* ─── scroll rail ───────────────────────────────────────────────────────────
+   Runs from the bottom of the bar to the bottom of the viewport. Deliberately
+   fainter than the highlights: it answers "where", not "what". */
 .hunch-marks {
   position: absolute;
-  top: 0;
+  top: var(--hunch-bar-h, 40px);
+  bottom: 0;
   right: 0;
-  /* measured from the bar, which wraps to a taller stack on narrow screens */
-  bottom: var(--hunch-bar-h, 34px);
-  width: 14px;
-  background: rgba(28, 27, 34, 0.35);
+  width: 12px;
+  /* No backing plate: at this height a tinted strip would run the whole way down the
+     page and tint the margin. The ticks are the affordance on their own. */
+  opacity: 0;
+  animation: hunch-fade 0.3s 0.06s ease-out both;
+}
+@keyframes hunch-fade {
+  to {
+    opacity: 1;
+  }
 }
 .hunch-mark {
   pointer-events: auto;
   position: absolute;
-  right: 2px;
-  width: 10px;
+  right: 3px;
+  width: 6px;
   height: 3px;
-  background: #fbbf24;
-  border-radius: 1px;
+  border-radius: 2px;
+  background: rgb(var(--h-accent));
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, height 0.15s, right 0.15s, width 0.15s;
+}
+.hunch-mark:hover {
+  width: 10px;
+  right: 1px;
 }
 .hunch-mark-current {
-  height: 5px;
-  width: 14px;
-  right: 0;
-  background: #ff5b5b;
+  height: 16px;
+  width: 3px;
+  right: 4px;
+  background: rgb(var(--h-bad));
 }
 .hunch-viewport {
   position: absolute;
-  left: 0;
-  right: 0;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 2px;
+  left: 2px;
+  right: 2px;
+  background: rgb(var(--h-text) / 0.07);
+  border-radius: 3px;
 }
 
-@media (max-width: 600px) {
+/* The diagnostics line is the first thing to go: it is the least useful thing on the
+   bar and the widest. The hit count it used to lead with is in the counter by now. */
+@media (max-width: 860px) {
+  .hunch-meta {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .hunch-bar {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
   .hunch-input {
     flex-basis: 100%;
     max-width: none;
@@ -245,7 +417,21 @@
   .hunch-band {
     flex: 1 1 auto;
   }
-  .hunch-meta {
+  .hunch-counter {
     display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hunch-bar,
+  .hunch-marks {
+    animation: none;
+  }
+  .hunch-bar,
+  .hunch-mark,
+  .hunch-progress-fill,
+  .hunch-input,
+  .hunch-nav,
+  .hunch-close {
+    transition: none;
   }
 }

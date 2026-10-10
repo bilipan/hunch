@@ -1,8 +1,28 @@
+/* Highlights are painted onto someone else's page, so they have to suit that page
+   rather than suit us. content.ts writes the detected surface onto <html> and these
+   tokens do the rest: a deeper amber on light backgrounds, a brighter one on dark. */
+:root[data-hunch-surface="dark"] {
+  --hunch-wash: 250 204 21;
+  --hunch-current: 255 122 122;
+  --hunch-badge-bg: 254 243 199;
+  --hunch-badge-fg: 146 64 14;
+}
+:root[data-hunch-surface="light"] {
+  --hunch-wash: 202 138 9;
+  --hunch-current: 220 38 38;
+  --hunch-badge-bg: 120 53 15;
+  --hunch-badge-fg: 254 243 199;
+}
+
 .hunch-hl {
   /* biome-ignore lint/complexity/noImportantStyles: must win over the host page's own background */
-  background: rgba(251, 191, 36, var(--hunch-alpha, 0.3)) !important;
-  box-shadow: 0 0 0 3px rgba(251, 191, 36, var(--hunch-alpha, 0.3));
+  background: rgb(var(--hunch-wash) / var(--hunch-alpha, 0.3)) !important;
+  /* An inset rule down the leading edge reads as a tab marking the paragraph. A full
+     3px ring around every hit was the loudest thing on the page; this says the same
+     thing from the side the eye already starts at. */
+  box-shadow: inset 3px 0 0 rgb(var(--hunch-wash) / calc(var(--hunch-alpha, 0.3) + 0.3));
   border-radius: 3px;
+  box-decoration-break: clone;
   transition:
     background 0.15s,
     box-shadow 0.15s;
@@ -13,24 +33,31 @@
 .hunch-hl.hunch-rel::after {
   content: attr(data-hunch-p);
   position: absolute;
-  top: -0.9em;
+  top: -0.85em;
   right: 0;
-  font: 10px / 1 monospace;
-  color: #92400e;
-  background: #fef3c7;
-  padding: 1px 4px;
+  font: 9px / 1 var(--hunch-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--hunch-badge-fg));
+  background: rgb(var(--hunch-badge-bg));
+  padding: 2px 4px;
   border-radius: 3px;
-  opacity: 0.85;
+  opacity: 0.7;
   pointer-events: none;
 }
+/* Everything scored but outside the band: enough to see what you excluded, not
+   enough to compete with the hits you kept. */
 .hunch-dim {
   /* biome-ignore lint/complexity/noImportantStyles: must win over the host page's own background */
-  background: rgba(251, 191, 36, var(--hunch-alpha, 0.06)) !important;
+  background: rgb(var(--hunch-wash) / var(--hunch-alpha, 0.06)) !important;
   border-radius: 3px;
+  box-decoration-break: clone;
   transition: background 0.15s;
 }
 .hunch-current {
   /* biome-ignore lint/complexity/noImportantStyles: must win over the host page's own outline */
-  outline: 3px solid #ff5b5b !important;
-  outline-offset: 2px;
+  outline: 2px solid rgb(var(--hunch-current)) !important;
+  outline-offset: 1px;
+}
+.hunch-current.hunch-hl {
+  box-shadow: inset 3px 0 0 rgb(var(--hunch-current));
 }
