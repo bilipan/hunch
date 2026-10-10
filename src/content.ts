@@ -1,9 +1,10 @@
 import browser from "webextension-polyfill";
 import { FindBar, type Status } from "./content/bar";
 import { extractBlocks, type PageBlock } from "./content/blocks";
-import { clearPaint, type Hit, markCurrent, paintHits, rankHits } from "./content/hits";
+import { clearPaint, type Hit, markCurrent, paintBand, rankHits } from "./content/hits";
 import { ScrollMarks } from "./content/marks";
-import { type Progress, SEARCH_PORT, type Search, type SearchEvent, type TabMessage } from "./shared/protocol";
+import { type Band, DEFAULT_BAND } from "./shared/questions";
+import { type BlockId, type Progress, SEARCH_PORT, type Search, type SearchEvent, type TabMessage } from "./shared/protocol";
 
 const DEBOUNCE_MS = 300;
 const MIN_QUERY = 3;
@@ -16,6 +17,7 @@ class Hunch {
   private readonly bar = new FindBar({
     onQuery: (q) => this.queueSearch(q),
     onStep: (dir) => this.step(dir),
+    onBand: (band) => this.setBand(band),
     onClose: () => this.close(),
   });
   private readonly marks = new ScrollMarks((hit) => {
@@ -25,6 +27,10 @@ class Hunch {
 
   private blocks: PageBlock[] = [];
   private hits: Hit[] = [];
+  private scores: Record<BlockId, number> = {};
+  private last: Progress | undefined;
+  // Survives close/open for the tab, so you don't re-drag it on every search
+  private band: Band = { ...DEFAULT_BAND };
   private currentEl: HTMLElement | undefined;
   // Set once the reader picks a hit themselves, so incoming chunks stop yanking them
   private pinned = false;
@@ -38,6 +44,11 @@ class Hunch {
     this.host.attachShadow({ mode: "open" }).append(style, this.bar.root, this.marks.root);
     document.documentElement.appendChild(this.host);
     window.addEventListener("resize", () => this.marks.draw(this.hits, this.current));
+    // The bar wraps to a different height on narrow screens, so the rail's bottom edge
+    // follows it rather than trusting a hardcoded offset.
+    new ResizeObserver(() => {
+      this.host.style.setProperty("--hunch-bar-h", `${this.bar.root.offsetHeight}px`);
+    }).observe(this.bar.root);
   }
 
   get isOpen() {
@@ -60,6 +71,8 @@ class Hunch {
   private reset() {
     clearPaint();
     this.hits = [];
+    this.scores = {};
+    this.last = undefined;
     this.currentEl = undefined;
     this.pinned = false;
     this.marks.draw([], undefined);
@@ -102,29 +115,45 @@ class Hunch {
 
   private render(e: SearchEvent) {
     if (e.type === "failure") {
+      this.last = undefined;
       this.bar.set({ verdict: { text: e.message, tone: "error" }, progress: { done: 0, total: 0 } });
       return;
     }
-    const finished = e.done === e.total;
-    // Scores land chunk by chunk, so highlight whatever has cleared the bar already
-    // instead of holding the page still until the last request comes back.
-    this.hits = rankHits(this.blocks, e.scores);
-    paintHits(this.hits);
+    this.scores = e.scores;
+    this.last = e;
+    this.refilter();
+  }
 
+  private setBand(band: Band) {
+    this.band = band;
+    this.refilter();
+  }
+
+  // The single place that turns scores plus a band into a painted page. Runs on every
+  // progress event and on every thumb movement, so the two paths cannot drift.
+  private refilter() {
+    const ranked = rankHits(this.blocks, this.scores, this.band);
+    paintBand(ranked, this.band);
+    this.hits = ranked.hits;
+
+    if (this.currentEl && !ranked.hits.some((h) => h.el === this.currentEl)) {
+      this.currentEl = undefined; // the reader's hit just got filtered out
+      this.pinned = false;
+    }
     const best = this.hits[0];
     if (best && !this.pinned) {
       // Never scroll on our own: highlights land wherever they sit on the page and the
       // reader stays put. ▲▼ or a click on the rail is the only thing that moves them.
       this.moveTo(best, false);
     } else {
-      if (finished && !best) this.currentEl = undefined;
       this.marks.draw(this.hits, this.current);
     }
-    this.bar.set(this.status(e));
+    this.bar.set(this.status());
   }
 
-  private status(p: Progress) {
-    const finished = p.done === p.total;
+  private status(): Status {
+    const p = this.last;
+    const finished = !p || p.done === p.total;
     const best = this.hits[0];
     const n = this.hits.length;
     const verdict: Verdict = best
@@ -132,10 +161,12 @@ class Hunch {
       : { text: finished ? "not on this page" : "searching…", tone: finished ? "absent" : "busy" };
     return {
       verdict,
-      meta: `${n} hit${n === 1 ? "" : "s"} · ${p.ms} ms · ${p.total} req${p.failed ? ` · ${p.failed} failed` : ""}`,
-      progress: { done: p.done, total: p.total },
+      // undefined leaves whatever reset() put there alone, so nudging the slider before
+      // searching doesn't replace the block count with "0 hits"
+      meta: p ? `${n} hit${n === 1 ? "" : "s"} · ${p.ms} ms · ${p.total} req${p.failed ? ` · ${p.failed} failed` : ""}` : undefined,
+      progress: { done: p?.done ?? 0, total: p?.total ?? 0 },
       counter: this.counterText(),
-    } as const;
+    };
   }
 
   private get current(): Hit | undefined {

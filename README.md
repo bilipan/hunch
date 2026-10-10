@@ -18,6 +18,7 @@ The extension then highlights the elements with the highest probability of being
 
 - `Alt+F` on macOS, `Ctrl+Shift+F` elsewhere; Cmd+F and Ctrl+F stay the normal find. Change it in Hunch's settings page: click the shortcut field and press the keys you want. In Chrome, change it at chrome://extensions/shortcuts, where it is listed as "Activate the extension".
 - Type in a search query. This can be a word your're looking for, a question, a sentence. Enter/Shift-Enter cycles you to the best first one and you can see all results on the scrollbar just like with normal search.
+- The slider in the bar is a confidence band. Hits inside it are highlighted and reachable with Enter; hits outside it keep a faint wash but drop out of the scrollbar and the count. Drag it to cut off the weak tail, or to cut off hits the model is suspiciously sure about, and the remaining highlights restretch so you can still tell them apart. It remembers where you left it for the tab.
 
 To use this you need to have a TokenDance API key. You can add it in the settings of the extension.
 
@@ -51,7 +52,7 @@ All questions and thresholds live in `src/shared/questions.ts`. If you have any 
 
 One annoying thing about Jev today is the very small context window: 64k tokens.
 That means both the state and the questions. Now I'm sure that's going to grow substantially in the future, but for right now my way around the issue when it comes to massive pages (say for example the curl man page), is to chunk the request into 160 blocks each, and send them all in parallel.
-Results are drawn once all chunks return, so the page stays calm while the search runs. Normal pages will fit into one request most of the time.
+Results are drawn as the chunks come back rather than all at once, so paragraphs light up while the search is still running. Hunch never scrolls the page by itself: the best hit so far only takes the red outline, and moving there is left to you. Normal pages will fit into one request most of the time.
 
 ## Privacy and licence
 

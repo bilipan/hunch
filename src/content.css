@@ -23,6 +23,12 @@
   opacity: 0.85;
   pointer-events: none;
 }
+.hunch-dim {
+  /* biome-ignore lint/complexity/noImportantStyles: must win over the host page's own background */
+  background: rgba(251, 191, 36, var(--hunch-alpha, 0.06)) !important;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
 .hunch-current {
   /* biome-ignore lint/complexity/noImportantStyles: must win over the host page's own outline */
   outline: 3px solid #ff5b5b !important;
