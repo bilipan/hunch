@@ -111,8 +111,12 @@
   color: rgb(var(--h-faint));
 }
 .hunch-input:focus {
-  background: rgb(var(--h-raise) / calc(var(--h-raise-a) * 1.6));
-  border-color: rgb(var(--h-accent) / 0.6);
+  background: rgb(var(--h-raise) / calc(var(--h-raise-a) * 2));
+  border-color: rgb(var(--h-accent) / 0.55);
+  /* A soft halo rather than the shared focus ring below. That ring is right for the
+     buttons, but stacked on the field's own border it drew two heavy amber outlines and
+     competed with the band, where amber already means something. */
+  box-shadow: 0 0 0 3px rgb(var(--h-accent) / 0.14);
 }
 
 .hunch-counter {
@@ -325,7 +329,7 @@
   background: rgb(var(--h-raise) / calc(var(--h-raise-a) * 2));
   color: rgb(var(--h-text));
 }
-:where(.hunch-input, .hunch-nav, .hunch-close, .hunch-band-thumb):focus-visible {
+:where(.hunch-nav, .hunch-close, .hunch-band-thumb):focus-visible {
   outline: 2px solid rgb(var(--h-accent));
   outline-offset: 2px;
 }

@@ -17,15 +17,9 @@
 .hunch-hl {
   /* biome-ignore lint/complexity/noImportantStyles: must win over the host page's own background */
   background: rgb(var(--hunch-wash) / var(--hunch-alpha, 0.3)) !important;
-  /* An inset rule down the leading edge reads as a tab marking the paragraph. A full
-     3px ring around every hit was the loudest thing on the page; this says the same
-     thing from the side the eye already starts at. */
-  box-shadow: inset 3px 0 0 rgb(var(--hunch-wash) / calc(var(--hunch-alpha, 0.3) + 0.3));
   border-radius: 3px;
   box-decoration-break: clone;
-  transition:
-    background 0.15s,
-    box-shadow 0.15s;
+  transition: background 0.15s;
 }
 .hunch-hl.hunch-rel {
   position: relative;
@@ -33,15 +27,25 @@
 .hunch-hl.hunch-rel::after {
   content: attr(data-hunch-p);
   position: absolute;
+  /* Sits astride the block's top edge, where it has always been, rather than tucked
+     inside it. */
   top: -0.85em;
   right: 0;
-  font: 9px / 1 var(--hunch-mono, ui-monospace, monospace);
+  /* One below the find bar's own host, so it clears sticky headers and cards on the
+     page without ever outranking our UI. Note this lifts the badge alone — the block
+     itself stays at z-index auto, because raising it would drag a whole paragraph over
+     the header it is merely touching. One limit stands: an ancestor that opens a
+     stacking context (a wrapper at z-index: 1, say) still traps the badge, since a
+     pseudo-element cannot climb out of the context it belongs to. */
+  z-index: 2147483646;
+  font: 600 10px / 1 var(--hunch-mono, ui-monospace, monospace);
   font-variant-numeric: tabular-nums;
   color: rgb(var(--hunch-badge-fg));
   background: rgb(var(--hunch-badge-bg));
-  padding: 2px 4px;
-  border-radius: 3px;
-  opacity: 0.7;
+  border: 1px solid rgb(var(--hunch-badge-fg) / 0.3);
+  padding: 2px 5px;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
   pointer-events: none;
 }
 /* Everything scored but outside the band: enough to see what you excluded, not
@@ -57,7 +61,4 @@
   /* biome-ignore lint/complexity/noImportantStyles: must win over the host page's own outline */
   outline: 2px solid rgb(var(--hunch-current)) !important;
   outline-offset: 1px;
-}
-.hunch-current.hunch-hl {
-  box-shadow: inset 3px 0 0 rgb(var(--hunch-current));
 }
