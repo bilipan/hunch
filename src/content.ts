@@ -97,13 +97,17 @@ class Hunch {
       this.bar.set({ verdict: { text: e.message, tone: "error" }, progress: { done: 0, total: 0 } });
       return;
     }
+    const finished = e.done === e.total;
+    if (!finished) {
+      // While search is in progress, only update the status bar — don't repaint highlights
+      this.bar.set({ ...this.status(e), verdict: { text: "thinking…", tone: "busy" } });
+      return;
+    }
+    // Final render: paint highlights and marks once
     this.hits = rankHits(this.blocks, e.scores);
     paint(this.hits);
-
-    const finished = e.done === e.total;
-    if (finished && this.hits[0]) this.goTo(this.hits[0]);
+    if (this.hits[0]) this.goTo(this.hits[0]);
     else this.current = undefined;
-
     this.bar.set(this.status(e));
     this.marks.draw(this.hits, this.current);
   }

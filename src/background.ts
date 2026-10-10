@@ -66,7 +66,7 @@ browser.runtime.onConnect.addListener((port) => {
       if (!(await hasApiAccess()))
         return emit({
           type: "failure",
-          message: `Hunch needs permission to reach api.typesafe.ai. Press ${await shortcutLabel()} again and accept the prompt.`,
+          message: `Hunch needs permission to reach tokendance.space. Press ${await shortcutLabel()} again and accept the prompt.`,
         });
       await answer(req, settings, abort.signal, emit);
     } catch (e) {
